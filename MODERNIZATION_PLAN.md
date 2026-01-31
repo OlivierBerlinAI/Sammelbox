@@ -1,7 +1,7 @@
 # Sammelbox Modernization Plan
-## Tauri + React + TypeScript Implementation
+## Tauri 2.0 + React + TypeScript Implementation
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Date:** January 2026
 **Target:** Complete rewrite with 100% database compatibility
 
@@ -19,7 +19,8 @@
 8. [Data Migration Strategy](#8-data-migration-strategy)
 9. [Build & Deployment](#9-build--deployment)
 10. [Development Roadmap](#10-development-roadmap)
-11. [Appendix](#11-appendix)
+11. [Testing Strategy](#11-testing-strategy)
+12. [Appendix](#12-appendix)
 
 ---
 
@@ -29,20 +30,30 @@
 
 - **Complete rewrite** of Sammelbox in a modern tech stack
 - **100% database compatibility** with existing SQLite databases
-- **Cross-platform support** for Windows, macOS, and Linux
+- **Cross-platform support** for Windows, macOS, Linux, **iOS, and Android**
 - **Modern UI/UX** with responsive design and dark mode
-- **Maintainable codebase** with type safety throughout
+- **Maintainable codebase** with TypeScript throughout (minimal Rust)
 
-### Why Tauri + React + TypeScript?
+### Why Tauri 2.0 + React + TypeScript?
 
 | Benefit | Description |
 |---------|-------------|
-| **Small Bundle** | ~10MB vs 150MB+ for Electron |
-| **Native Performance** | Rust backend for CPU-intensive operations |
-| **Type Safety** | TypeScript frontend + Rust backend = fewer runtime errors |
+| **Small Bundle** | ~10-15MB vs 150MB+ for Electron |
+| **Cross-Platform** | Desktop (Win/Mac/Linux) + Mobile (iOS/Android) |
+| **TypeScript-First** | 95% TypeScript, minimal Rust = easier maintenance |
+| **Type Safety** | End-to-end type safety with shared types |
 | **Modern UI** | React ecosystem with rich component libraries |
 | **Security** | Tauri's security-first architecture |
-| **Future Mobile** | Tauri 2.0 supports iOS and Android |
+| **Native SQLite** | Direct database access via Tauri SQL plugin |
+
+### Architecture Philosophy
+
+**TypeScript-Heavy Approach**: Most business logic lives in TypeScript. Rust is only used for:
+- Image thumbnail generation (native performance)
+- File system operations that need native access
+- Any CPU-intensive operations
+
+This makes the codebase accessible to web developers while keeping bundle sizes small.
 
 ---
 
@@ -52,40 +63,51 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        FRONTEND                              │
+│                     FRONTEND (TypeScript)                    │
 ├─────────────────────────────────────────────────────────────┤
-│  React 18+          UI Framework                            │
-│  TypeScript 5+      Type-safe JavaScript                    │
-│  Vite 5+            Build tool & dev server                 │
-│  TailwindCSS 3+     Utility-first CSS                       │
-│  React Router 6+    Client-side routing                     │
-│  TanStack Query     Server state management                 │
-│  Zustand            Client state management                 │
-│  React Hook Form    Form handling                           │
-│  Zod                Schema validation                       │
+│  React 18+            UI Framework                          │
+│  TypeScript 5+        Type-safe JavaScript                  │
+│  Vite 5+              Build tool & dev server               │
+│  TailwindCSS 3+       Utility-first CSS                     │
+│  React Router 6+      Client-side routing                   │
+│  TanStack Query       Server state management               │
+│  Zustand              Client state management               │
+│  React Hook Form      Form handling                         │
+│  Zod                  Schema validation                     │
 └─────────────────────────────────────────────────────────────┘
-                              │
-                              │ Tauri IPC (Commands & Events)
-                              ▼
+        │                                           │
+        │  Tauri SQL Plugin                         │  Tauri IPC
+        │  (TypeScript → SQLite)                    │  (for Rust commands)
+        ▼                                           ▼
+┌──────────────────────────────┐  ┌────────────────────────────┐
+│      DATABASE LAYER          │  │   RUST BACKEND (Minimal)   │
+│      (TypeScript)            │  │                            │
+├──────────────────────────────┤  ├────────────────────────────┤
+│  @tauri-apps/plugin-sql      │  │  Image processing only     │
+│  - All CRUD operations       │  │  - Thumbnail generation    │
+│  - Search queries            │  │  - Image resizing          │
+│  - Schema management         │  │                            │
+└──────────────────────────────┘  └────────────────────────────┘
+        │                                           │
+        └─────────────────┬─────────────────────────┘
+                          ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                        BACKEND                               │
-├─────────────────────────────────────────────────────────────┤
-│  Tauri 2.0          Application framework                   │
-│  Rust 1.75+         Systems programming language            │
-│  rusqlite           SQLite bindings                         │
-│  serde              Serialization/deserialization           │
-│  tokio              Async runtime                           │
-│  image              Image processing                        │
-│  uuid               UUID generation                         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       DATABASE                               │
+│                       STORAGE                                │
 ├─────────────────────────────────────────────────────────────┤
 │  SQLite 3.x         Embedded database (existing format)     │
+│  File System        Images stored as files (not in DB)      │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Platform Support Matrix
+
+| Platform | Status | Bundle Size | Notes |
+|----------|--------|-------------|-------|
+| **Windows** | Full | ~12 MB | Uses WebView2 (Edge) |
+| **macOS** | Full | ~10 MB | Uses WebKit (built-in) |
+| **Linux** | Full | ~15 MB | Uses WebKitGTK |
+| **iOS** | Full | ~15 MB | Uses WKWebView |
+| **Android** | Full | ~20 MB | Uses WebView |
 
 ### Version Requirements
 
@@ -99,11 +121,11 @@
 
 ### Development Tools
 
-- **IDE:** VS Code with Rust Analyzer + TypeScript extensions
+- **IDE:** VS Code with TypeScript + Tauri extensions
 - **Package Manager:** pnpm (faster, disk-efficient)
-- **Linting:** ESLint + Prettier (frontend), Clippy (Rust)
-- **Testing:** Vitest (frontend), Rust test framework (backend)
-- **E2E Testing:** Playwright or WebdriverIO
+- **Linting:** ESLint + Prettier
+- **Testing:** Vitest (unit/integration), Playwright (E2E)
+- **Rust (minimal):** Only for image service
 
 ---
 
@@ -111,50 +133,19 @@
 
 ```
 sammelbox-modern/
-├── src-tauri/                    # Rust backend
+├── src-tauri/                    # Rust backend (MINIMAL)
 │   ├── Cargo.toml                # Rust dependencies
 │   ├── tauri.conf.json           # Tauri configuration
 │   ├── capabilities/             # Permission capabilities
 │   ├── icons/                    # App icons
 │   └── src/
-│       ├── main.rs               # Entry point
+│       ├── main.rs               # Entry point + plugin registration
 │       ├── lib.rs                # Library root
-│       ├── commands/             # Tauri commands (IPC handlers)
-│       │   ├── mod.rs
-│       │   ├── albums.rs         # Album CRUD operations
-│       │   ├── items.rs          # Album item operations
-│       │   ├── pictures.rs       # Image handling
-│       │   ├── search.rs         # Search & filter
-│       │   ├── import_export.rs  # CSV/HTML import/export
-│       │   └── sync.rs           # LAN synchronization
-│       ├── database/             # Database layer
-│       │   ├── mod.rs
-│       │   ├── connection.rs     # Connection management
-│       │   ├── schema.rs         # Schema definitions
-│       │   ├── migrations.rs     # Schema migrations
-│       │   └── queries/          # SQL query builders
-│       │       ├── mod.rs
-│       │       ├── albums.rs
-│       │       ├── items.rs
-│       │       └── pictures.rs
-│       ├── models/               # Data models
-│       │   ├── mod.rs
-│       │   ├── album.rs
-│       │   ├── field.rs
-│       │   ├── item.rs
-│       │   └── picture.rs
-│       ├── services/             # Business logic
-│       │   ├── mod.rs
-│       │   ├── image_service.rs  # Thumbnail generation
-│       │   ├── export_service.rs # Export functionality
-│       │   ├── import_service.rs # Import functionality
-│       │   └── sync_service.rs   # Network sync
-│       └── utils/                # Utilities
+│       └── commands/
 │           ├── mod.rs
-│           ├── paths.rs          # Path resolution
-│           └── errors.rs         # Error handling
+│           └── images.rs         # ONLY Rust code: thumbnail generation
 │
-├── src/                          # React frontend
+├── src/                          # React frontend (ALL BUSINESS LOGIC)
 │   ├── main.tsx                  # React entry point
 │   ├── App.tsx                   # Root component
 │   ├── components/               # Reusable components
@@ -197,10 +188,13 @@ sammelbox-modern/
 │   │   ├── uiStore.ts
 │   │   └── settingsStore.ts
 │   ├── services/                 # Frontend services
-│   │   ├── api.ts                # Tauri command wrappers
-│   │   ├── albums.ts
-│   │   ├── items.ts
-│   │   └── search.ts
+│   │   ├── database.ts           # SQLite via @tauri-apps/plugin-sql
+│   │   ├── albums.ts             # Album operations (TypeScript)
+│   │   ├── items.ts              # Item operations (TypeScript)
+│   │   ├── search.ts             # Search logic (TypeScript)
+│   │   ├── pictures.ts           # Picture management
+│   │   ├── import-export.ts      # CSV/HTML import/export
+│   │   └── images.ts             # Calls Rust for thumbnails only
 │   ├── types/                    # TypeScript types
 │   │   ├── album.ts
 │   │   ├── field.ts
@@ -282,759 +276,20 @@ CREATE TABLE "[album_name]_pictures" (
 
 ### 4.2 Field Type Mapping
 
-| Original FieldType | SQLite Type | Rust Type | TypeScript Type |
-|-------------------|-------------|-----------|-----------------|
-| ID | INTEGER | i64 | number |
-| TEXT | TEXT | String | string |
-| DECIMAL | REAL | f64 | number |
-| DATE | TEXT | String | string (ISO 8601) |
-| TIME | TEXT | String | string |
-| UUID | TEXT | String | string |
-| STAR_RATING | INTEGER | i32 (0-5) | number |
-| URL | TEXT | String | string |
-| INTEGER | INTEGER | i64 | number |
-| OPTION | TEXT | String | 'YES' \| 'NO' \| 'UNKNOWN' |
-
-### 4.3 Rust Database Models
-
-```rust
-// src-tauri/src/models/album.rs
-
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlbumMaster {
-    pub id: i64,
-    pub album_name: String,
-    pub album_table_name: String,
-    pub has_pictures: OptionType,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum OptionType {
-    Yes,
-    No,
-    Unknown,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlbumSchema {
-    pub fields: Vec<FieldDefinition>,
-    pub schema_version: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldDefinition {
-    pub name: String,
-    pub field_type: FieldType,
-    pub quick_searchable: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum FieldType {
-    Id,
-    Text,
-    Decimal,
-    Date,
-    Time,
-    Uuid,
-    StarRating,
-    Url,
-    Integer,
-    Option,
-}
-```
-
-```rust
-// src-tauri/src/models/item.rs
-
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlbumItem {
-    pub id: i64,
-    pub fields: Vec<FieldValue>,
-    pub content_version: String,
-    pub pictures: Vec<Picture>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldValue {
-    pub name: String,
-    pub value: Value,  // Dynamic JSON value
-    pub field_type: FieldType,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Picture {
-    pub id: i64,
-    pub original_filename: String,
-    pub thumbnail_filename: String,
-}
-```
-
-### 4.4 Database Connection Management
-
-```rust
-// src-tauri/src/database/connection.rs
-
-use rusqlite::{Connection, OpenFlags};
-use std::path::PathBuf;
-use std::sync::Mutex;
-use tauri::State;
-
-pub struct DatabaseState(pub Mutex<Connection>);
-
-pub fn initialize_database(app_data_dir: &PathBuf) -> Result<Connection, rusqlite::Error> {
-    let db_path = app_data_dir.join("sammelbox.db");
-
-    let conn = Connection::open_with_flags(
-        &db_path,
-        OpenFlags::SQLITE_OPEN_READ_WRITE
-            | OpenFlags::SQLITE_OPEN_CREATE
-            | OpenFlags::SQLITE_OPEN_FULL_MUTEX,
-    )?;
-
-    // Enable foreign keys (matching original behavior)
-    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
-
-    // Create master table if not exists
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS album_master_table (
-            id INTEGER PRIMARY KEY,
-            album_name TEXT,
-            album_table_name TEXT,
-            has_pictures TEXT
-        )",
-        [],
-    )?;
-
-    Ok(conn)
-}
-```
-
----
-
-## 5. Backend Architecture (Rust/Tauri)
-
-### 5.1 Tauri Commands (IPC Interface)
-
-Commands are the bridge between frontend and backend. They're invoked from TypeScript and executed in Rust.
-
-```rust
-// src-tauri/src/commands/albums.rs
-
-use crate::database::DatabaseState;
-use crate::models::{AlbumMaster, AlbumSchema, FieldDefinition};
-use tauri::State;
-
-#[tauri::command]
-pub async fn get_all_albums(
-    db: State<'_, DatabaseState>,
-) -> Result<Vec<AlbumMaster>, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    let mut stmt = conn
-        .prepare("SELECT id, album_name, album_table_name, has_pictures FROM album_master_table")
-        .map_err(|e| e.to_string())?;
-
-    let albums = stmt
-        .query_map([], |row| {
-            Ok(AlbumMaster {
-                id: row.get(0)?,
-                album_name: row.get(1)?,
-                album_table_name: row.get(2)?,
-                has_pictures: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    Ok(albums)
-}
-
-#[tauri::command]
-pub async fn create_album(
-    db: State<'_, DatabaseState>,
-    name: String,
-    fields: Vec<FieldDefinition>,
-    has_pictures: bool,
-) -> Result<AlbumMaster, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    // Generate table name (sanitized)
-    let table_name = sanitize_table_name(&name);
-    let schema_version = uuid::Uuid::new_v4().to_string();
-
-    // Start transaction
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
-
-    // 1. Create main album table
-    let columns_sql = fields
-        .iter()
-        .map(|f| format!("\"{}\" {}", f.name, f.field_type.to_sql_type()))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let create_table_sql = format!(
-        r#"CREATE TABLE "{}" (
-            id INTEGER PRIMARY KEY,
-            {},
-            content_version TEXT,
-            typeinfo INTEGER,
-            FOREIGN KEY(typeinfo) REFERENCES "{}_typeinfo"(id)
-        )"#,
-        table_name, columns_sql, table_name
-    );
-
-    conn.execute(&create_table_sql, []).map_err(|e| e.to_string())?;
-
-    // 2. Create typeinfo table
-    let typeinfo_columns = fields
-        .iter()
-        .map(|f| format!("\"{}\" TEXT", f.name))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let create_typeinfo_sql = format!(
-        r#"CREATE TABLE "{}_typeinfo" (
-            id INTEGER PRIMARY KEY,
-            {},
-            schema_version TEXT
-        )"#,
-        table_name, typeinfo_columns
-    );
-
-    conn.execute(&create_typeinfo_sql, []).map_err(|e| e.to_string())?;
-
-    // 3. Insert typeinfo row
-    let typeinfo_values = fields
-        .iter()
-        .map(|f| format!("'{}'", f.field_type.to_string()))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    let insert_typeinfo_sql = format!(
-        r#"INSERT INTO "{}_typeinfo" ({}, schema_version) VALUES ({}, '{}')"#,
-        table_name,
-        fields.iter().map(|f| format!("\"{}\"", f.name)).collect::<Vec<_>>().join(", "),
-        typeinfo_values,
-        schema_version
-    );
-
-    conn.execute(&insert_typeinfo_sql, []).map_err(|e| e.to_string())?;
-
-    // 4. Create pictures table if needed
-    if has_pictures {
-        let create_pictures_sql = format!(
-            r#"CREATE TABLE "{}_pictures" (
-                id INTEGER PRIMARY KEY,
-                original_picture_filename TEXT,
-                thumbnail_picture_filename TEXT,
-                album_item_foreign_key INTEGER
-            )"#,
-            table_name
-        );
-        conn.execute(&create_pictures_sql, []).map_err(|e| e.to_string())?;
-    }
-
-    // 5. Register in master table
-    let has_pictures_str = if has_pictures { "YES" } else { "NO" };
-    conn.execute(
-        "INSERT INTO album_master_table (album_name, album_table_name, has_pictures) VALUES (?1, ?2, ?3)",
-        [&name, &table_name, has_pictures_str],
-    ).map_err(|e| e.to_string())?;
-
-    let album_id = conn.last_insert_rowid();
-
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-
-    Ok(AlbumMaster {
-        id: album_id,
-        album_name: name,
-        album_table_name: table_name,
-        has_pictures: if has_pictures { OptionType::Yes } else { OptionType::No },
-    })
-}
-
-#[tauri::command]
-pub async fn delete_album(
-    db: State<'_, DatabaseState>,
-    album_table_name: String,
-) -> Result<(), String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    conn.execute("BEGIN TRANSACTION", []).map_err(|e| e.to_string())?;
-
-    // Drop all related tables
-    conn.execute(&format!(r#"DROP TABLE IF EXISTS "{}""#, album_table_name), [])
-        .map_err(|e| e.to_string())?;
-    conn.execute(&format!(r#"DROP TABLE IF EXISTS "{}_typeinfo""#, album_table_name), [])
-        .map_err(|e| e.to_string())?;
-    conn.execute(&format!(r#"DROP TABLE IF EXISTS "{}_pictures""#, album_table_name), [])
-        .map_err(|e| e.to_string())?;
-
-    // Remove from master table
-    conn.execute(
-        "DELETE FROM album_master_table WHERE album_table_name = ?1",
-        [&album_table_name],
-    ).map_err(|e| e.to_string())?;
-
-    conn.execute("COMMIT", []).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-```
-
-### 5.2 Item Operations
-
-```rust
-// src-tauri/src/commands/items.rs
-
-use crate::database::DatabaseState;
-use crate::models::{AlbumItem, FieldValue};
-use serde_json::Value;
-use tauri::State;
-
-#[tauri::command]
-pub async fn get_album_items(
-    db: State<'_, DatabaseState>,
-    album_table_name: String,
-    limit: Option<i64>,
-    offset: Option<i64>,
-) -> Result<Vec<AlbumItem>, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    // First get the schema to know column types
-    let schema = get_album_schema_internal(&conn, &album_table_name)?;
-
-    let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
-    let offset_clause = offset.map(|o| format!(" OFFSET {}", o)).unwrap_or_default();
-
-    let sql = format!(
-        r#"SELECT * FROM "{}" ORDER BY id DESC{}{}"#,
-        album_table_name, limit_clause, offset_clause
-    );
-
-    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
-    let column_count = stmt.column_count();
-    let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
-
-    let items = stmt
-        .query_map([], |row| {
-            let id: i64 = row.get("id")?;
-            let content_version: String = row.get("content_version").unwrap_or_default();
-
-            let mut fields = Vec::new();
-            for (i, col_name) in column_names.iter().enumerate() {
-                // Skip internal columns
-                if col_name == "id" || col_name == "content_version" || col_name == "typeinfo" {
-                    continue;
-                }
-
-                if let Some(field_def) = schema.fields.iter().find(|f| &f.name == col_name) {
-                    let value = extract_value(row, i, &field_def.field_type);
-                    fields.push(FieldValue {
-                        name: col_name.clone(),
-                        value,
-                        field_type: field_def.field_type.clone(),
-                    });
-                }
-            }
-
-            Ok(AlbumItem {
-                id,
-                fields,
-                content_version,
-                pictures: Vec::new(), // Loaded separately
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    Ok(items)
-}
-
-#[tauri::command]
-pub async fn create_item(
-    db: State<'_, DatabaseState>,
-    album_table_name: String,
-    fields: Vec<FieldValue>,
-) -> Result<AlbumItem, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    let content_version = uuid::Uuid::new_v4().to_string();
-
-    let column_names: Vec<String> = fields.iter().map(|f| format!("\"{}\"", f.name)).collect();
-    let placeholders: Vec<String> = (1..=fields.len()).map(|i| format!("?{}", i)).collect();
-
-    let sql = format!(
-        r#"INSERT INTO "{}" ({}, content_version, typeinfo) VALUES ({}, ?{}, 1)"#,
-        album_table_name,
-        column_names.join(", "),
-        placeholders.join(", "),
-        fields.len() + 1
-    );
-
-    // Build params dynamically
-    let params: Vec<Box<dyn rusqlite::ToSql>> = fields
-        .iter()
-        .map(|f| value_to_sql(&f.value, &f.field_type))
-        .collect();
-
-    conn.execute(&sql, rusqlite::params_from_iter(params.iter()))
-        .map_err(|e| e.to_string())?;
-
-    let id = conn.last_insert_rowid();
-
-    Ok(AlbumItem {
-        id,
-        fields,
-        content_version,
-        pictures: Vec::new(),
-    })
-}
-
-#[tauri::command]
-pub async fn update_item(
-    db: State<'_, DatabaseState>,
-    album_table_name: String,
-    item_id: i64,
-    fields: Vec<FieldValue>,
-) -> Result<(), String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    let content_version = uuid::Uuid::new_v4().to_string();
-
-    let set_clauses: Vec<String> = fields
-        .iter()
-        .enumerate()
-        .map(|(i, f)| format!("\"{}\" = ?{}", f.name, i + 1))
-        .collect();
-
-    let sql = format!(
-        r#"UPDATE "{}" SET {}, content_version = ?{} WHERE id = ?{}"#,
-        album_table_name,
-        set_clauses.join(", "),
-        fields.len() + 1,
-        fields.len() + 2
-    );
-
-    // Execute update...
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn delete_item(
-    db: State<'_, DatabaseState>,
-    album_table_name: String,
-    item_id: i64,
-) -> Result<(), String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    // Delete associated pictures first
-    conn.execute(
-        &format!(r#"DELETE FROM "{}_pictures" WHERE album_item_foreign_key = ?1"#, album_table_name),
-        [item_id],
-    ).map_err(|e| e.to_string())?;
-
-    // Delete item
-    conn.execute(
-        &format!(r#"DELETE FROM "{}" WHERE id = ?1"#, album_table_name),
-        [item_id],
-    ).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-```
-
-### 5.3 Image Service
-
-```rust
-// src-tauri/src/services/image_service.rs
-
-use image::{GenericImageView, ImageFormat};
-use std::path::PathBuf;
-use uuid::Uuid;
-
-pub struct ImageService {
-    app_data_dir: PathBuf,
-    thumbnail_size: u32,
-}
-
-impl ImageService {
-    pub fn new(app_data_dir: PathBuf) -> Self {
-        Self {
-            app_data_dir,
-            thumbnail_size: 200,
-        }
-    }
-
-    pub fn add_picture(
-        &self,
-        album_name: &str,
-        source_path: &PathBuf,
-    ) -> Result<(String, String), String> {
-        // Generate unique filenames (matching original format)
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        let uuid = Uuid::new_v4();
-
-        let extension = source_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("png");
-
-        let original_filename = format!("{}_{}.{}", uuid, timestamp, extension);
-        let thumbnail_filename = format!("{}_{}_thumb.{}", uuid, timestamp, extension);
-
-        // Create directories
-        let album_dir = self.app_data_dir.join(album_name);
-        let thumbnail_dir = self.app_data_dir.join("thumbnails");
-        std::fs::create_dir_all(&album_dir).map_err(|e| e.to_string())?;
-        std::fs::create_dir_all(&thumbnail_dir).map_err(|e| e.to_string())?;
-
-        // Copy original
-        let original_path = album_dir.join(&original_filename);
-        std::fs::copy(source_path, &original_path).map_err(|e| e.to_string())?;
-
-        // Generate thumbnail
-        let img = image::open(source_path).map_err(|e| e.to_string())?;
-        let thumbnail = img.thumbnail(self.thumbnail_size, self.thumbnail_size);
-        let thumbnail_path = thumbnail_dir.join(&thumbnail_filename);
-        thumbnail.save(&thumbnail_path).map_err(|e| e.to_string())?;
-
-        Ok((original_filename, thumbnail_filename))
-    }
-
-    pub fn delete_picture(
-        &self,
-        album_name: &str,
-        original_filename: &str,
-        thumbnail_filename: &str,
-    ) -> Result<(), String> {
-        let original_path = self.app_data_dir.join(album_name).join(original_filename);
-        let thumbnail_path = self.app_data_dir.join("thumbnails").join(thumbnail_filename);
-
-        let _ = std::fs::remove_file(original_path);
-        let _ = std::fs::remove_file(thumbnail_path);
-
-        Ok(())
-    }
-
-    pub fn get_picture_path(&self, album_name: &str, filename: &str) -> PathBuf {
-        self.app_data_dir.join(album_name).join(filename)
-    }
-
-    pub fn get_thumbnail_path(&self, filename: &str) -> PathBuf {
-        self.app_data_dir.join("thumbnails").join(filename)
-    }
-}
-```
-
-### 5.4 Search Implementation
-
-```rust
-// src-tauri/src/commands/search.rs
-
-use crate::database::DatabaseState;
-use crate::models::AlbumItem;
-use tauri::State;
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct SearchCriteria {
-    pub field: String,
-    pub operator: SearchOperator,
-    pub value: String,
-}
-
-#[derive(Debug, Clone, serde::Deserialize)]
-pub enum SearchOperator {
-    Equals,
-    NotEquals,
-    Contains,
-    StartsWith,
-    EndsWith,
-    GreaterThan,
-    LessThan,
-    GreaterOrEqual,
-    LessOrEqual,
-    IsEmpty,
-    IsNotEmpty,
-}
-
-impl SearchOperator {
-    fn to_sql(&self, field: &str, placeholder: &str) -> String {
-        match self {
-            SearchOperator::Equals => format!("\"{}\" = {}", field, placeholder),
-            SearchOperator::NotEquals => format!("\"{}\" != {}", field, placeholder),
-            SearchOperator::Contains => format!("\"{}\" LIKE '%' || {} || '%'", field, placeholder),
-            SearchOperator::StartsWith => format!("\"{}\" LIKE {} || '%'", field, placeholder),
-            SearchOperator::EndsWith => format!("\"{}\" LIKE '%' || {}", field, placeholder),
-            SearchOperator::GreaterThan => format!("\"{}\" > {}", field, placeholder),
-            SearchOperator::LessThan => format!("\"{}\" < {}", field, placeholder),
-            SearchOperator::GreaterOrEqual => format!("\"{}\" >= {}", field, placeholder),
-            SearchOperator::LessOrEqual => format!("\"{}\" <= {}", field, placeholder),
-            SearchOperator::IsEmpty => format!("(\"{}\" IS NULL OR \"{}\" = '')", field, field),
-            SearchOperator::IsNotEmpty => format!("(\"{}\" IS NOT NULL AND \"{}\" != '')", field, field),
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn search_items(
-    db: State<'_, DatabaseState>,
-    album_table_name: String,
-    criteria: Vec<SearchCriteria>,
-    quick_search: Option<String>,
-) -> Result<Vec<AlbumItem>, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-
-    let mut where_clauses = Vec::new();
-    let mut params: Vec<String> = Vec::new();
-
-    // Advanced search criteria
-    for (i, criterion) in criteria.iter().enumerate() {
-        let placeholder = format!("?{}", i + 1);
-        where_clauses.push(criterion.operator.to_sql(&criterion.field, &placeholder));
-        params.push(criterion.value.clone());
-    }
-
-    // Quick search (searches all quick-searchable fields)
-    if let Some(query) = quick_search {
-        // Get quick-searchable fields from typeinfo
-        let searchable_fields = get_quick_searchable_fields(&conn, &album_table_name)?;
-
-        if !searchable_fields.is_empty() {
-            let quick_clauses: Vec<String> = searchable_fields
-                .iter()
-                .map(|f| format!("\"{}\" LIKE '%' || ?{} || '%'", f, params.len() + 1))
-                .collect();
-
-            where_clauses.push(format!("({})", quick_clauses.join(" OR ")));
-            params.push(query);
-        }
-    }
-
-    let where_sql = if where_clauses.is_empty() {
-        String::new()
-    } else {
-        format!(" WHERE {}", where_clauses.join(" AND "))
-    };
-
-    let sql = format!(
-        r#"SELECT * FROM "{}"{} ORDER BY id DESC"#,
-        album_table_name, where_sql
-    );
-
-    // Execute query and return results...
-    todo!("Execute and map results")
-}
-
-#[tauri::command]
-pub async fn save_search(
-    db: State<'_, DatabaseState>,
-    name: String,
-    album_table_name: String,
-    criteria: Vec<SearchCriteria>,
-) -> Result<i64, String> {
-    // Save search configuration to a saved_searches table
-    todo!("Implement saved searches")
-}
-```
-
-### 5.5 Main Entry Point
-
-```rust
-// src-tauri/src/main.rs
-
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-mod commands;
-mod database;
-mod models;
-mod services;
-mod utils;
-
-use database::{connection::DatabaseState, initialize_database};
-use std::sync::Mutex;
-use tauri::Manager;
-
-fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .setup(|app| {
-            // Get app data directory
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("Failed to get app data directory");
-
-            std::fs::create_dir_all(&app_data_dir)
-                .expect("Failed to create app data directory");
-
-            // Initialize database
-            let conn = initialize_database(&app_data_dir)
-                .expect("Failed to initialize database");
-
-            app.manage(DatabaseState(Mutex::new(conn)));
-
-            // Initialize image service
-            let image_service = services::ImageService::new(app_data_dir.clone());
-            app.manage(image_service);
-
-            Ok(())
-        })
-        .invoke_handler(tauri::generate_handler![
-            // Album commands
-            commands::albums::get_all_albums,
-            commands::albums::create_album,
-            commands::albums::delete_album,
-            commands::albums::get_album_schema,
-            commands::albums::update_album_schema,
-            // Item commands
-            commands::items::get_album_items,
-            commands::items::create_item,
-            commands::items::update_item,
-            commands::items::delete_item,
-            // Picture commands
-            commands::pictures::add_picture,
-            commands::pictures::delete_picture,
-            commands::pictures::get_picture_path,
-            // Search commands
-            commands::search::search_items,
-            commands::search::save_search,
-            commands::search::get_saved_searches,
-            commands::search::run_saved_search,
-            // Import/Export commands
-            commands::import_export::import_csv,
-            commands::import_export::export_csv,
-            commands::import_export::export_html,
-            // Sync commands
-            commands::sync::start_sync_server,
-            commands::sync::discover_peers,
-            commands::sync::sync_with_peer,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
-```
-
----
-
-## 6. Frontend Architecture (React)
-
-### 6.1 TypeScript Types
+| Original FieldType | SQLite Type | TypeScript Type |
+|-------------------|-------------|-----------------|
+| ID | INTEGER | number |
+| TEXT | TEXT | string |
+| DECIMAL | REAL | number |
+| DATE | TEXT | string (ISO 8601) |
+| TIME | TEXT | string |
+| UUID | TEXT | string |
+| STAR_RATING | INTEGER | number (0-5) |
+| URL | TEXT | string |
+| INTEGER | INTEGER | number |
+| OPTION | TEXT | 'YES' \| 'NO' \| 'UNKNOWN' |
+
+### 4.3 TypeScript Database Models
 
 ```typescript
 // src/types/album.ts
@@ -1075,8 +330,6 @@ export type FieldType =
 ```typescript
 // src/types/item.ts
 
-import { FieldType } from './album';
-
 export interface AlbumItem {
   id: number;
   fields: FieldValue[];
@@ -1097,83 +350,705 @@ export interface Picture {
 }
 ```
 
-### 6.2 Tauri API Service
+### 4.4 Database Connection (TypeScript via Tauri SQL Plugin)
 
 ```typescript
-// src/services/api.ts
+// src/services/database.ts
+
+import Database from '@tauri-apps/plugin-sql';
+
+let db: Database | null = null;
+
+export async function getDatabase(): Promise<Database> {
+  if (!db) {
+    // Connect to SQLite database (creates if not exists)
+    db = await Database.load('sqlite:sammelbox.db');
+
+    // Enable foreign keys (matching original behavior)
+    await db.execute('PRAGMA foreign_keys = ON');
+
+    // Create master table if not exists
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS album_master_table (
+        id INTEGER PRIMARY KEY,
+        album_name TEXT,
+        album_table_name TEXT,
+        has_pictures TEXT
+      )
+    `);
+  }
+  return db;
+}
+
+export async function closeDatabase(): Promise<void> {
+  if (db) {
+    await db.close();
+    db = null;
+  }
+}
+```
+
+---
+
+## 5. Backend Architecture (Minimal Rust)
+
+### 5.1 Philosophy: TypeScript-First
+
+Unlike typical Tauri apps that put business logic in Rust, we use TypeScript for everything except image processing. This means:
+
+- **Database operations**: TypeScript via `@tauri-apps/plugin-sql`
+- **Search logic**: TypeScript
+- **Import/Export**: TypeScript
+- **Image thumbnails**: Rust (for native performance)
+
+### 5.2 Rust Code (Minimal - Image Processing Only)
+
+```rust
+// src-tauri/src/main.rs
+
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod commands;
+
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::images::generate_thumbnail,
+            commands::images::copy_and_rename_image,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+```
+
+```rust
+// src-tauri/src/commands/images.rs
+
+use image::GenericImageView;
+use std::path::PathBuf;
+use uuid::Uuid;
+
+#[tauri::command]
+pub async fn generate_thumbnail(
+    source_path: String,
+    dest_dir: String,
+    size: u32,
+) -> Result<String, String> {
+    let source = PathBuf::from(&source_path);
+    let dest = PathBuf::from(&dest_dir);
+
+    // Generate unique filename (matching original format: uuid_timestamp.ext)
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let uuid = Uuid::new_v4();
+
+    let extension = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+
+    let thumbnail_filename = format!("{}_{}.{}", uuid, timestamp, extension);
+
+    // Ensure directory exists
+    std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+
+    // Generate thumbnail
+    let img = image::open(&source).map_err(|e| e.to_string())?;
+    let thumbnail = img.thumbnail(size, size);
+    let thumbnail_path = dest.join(&thumbnail_filename);
+    thumbnail.save(&thumbnail_path).map_err(|e| e.to_string())?;
+
+    Ok(thumbnail_filename)
+}
+
+#[tauri::command]
+pub async fn copy_and_rename_image(
+    source_path: String,
+    dest_dir: String,
+) -> Result<String, String> {
+    let source = PathBuf::from(&source_path);
+    let dest = PathBuf::from(&dest_dir);
+
+    // Generate unique filename
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
+    let uuid = Uuid::new_v4();
+
+    let extension = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png");
+
+    let new_filename = format!("{}_{}.{}", uuid, timestamp, extension);
+
+    // Ensure directory exists
+    std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+
+    // Copy file
+    let dest_path = dest.join(&new_filename);
+    std::fs::copy(&source, &dest_path).map_err(|e| e.to_string())?;
+
+    Ok(new_filename)
+}
+```
+
+### 5.3 Cargo.toml (Minimal Dependencies)
+
+```toml
+# src-tauri/Cargo.toml
+[package]
+name = "sammelbox"
+version = "2.0.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["protocol-asset"] }
+tauri-plugin-sql = { version = "2.0", features = ["sqlite"] }
+tauri-plugin-fs = "2.0"
+tauri-plugin-dialog = "2.0"
+tauri-plugin-shell = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+image = "0.25"
+uuid = { version = "1.7", features = ["v4"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+```
+
+That's it! All other logic lives in TypeScript.
+
+---
+
+## 6. Frontend Architecture (React + TypeScript)
+
+This is where **all business logic** lives. The frontend handles:
+- All database operations via `@tauri-apps/plugin-sql`
+- Search and filtering logic
+- Import/Export functionality
+- State management
+
+### 6.1 Album Service (TypeScript - Full Implementation)
+
+```typescript
+// src/services/albums.ts
+
+import { getDatabase } from './database';
+import type { Album, AlbumSchema, FieldDefinition, FieldType } from '../types/album';
+import { v4 as uuidv4 } from 'uuid';
+
+// Sanitize album name to create valid table name
+function sanitizeTableName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+}
+
+// Map FieldType to SQLite type
+function fieldTypeToSql(fieldType: FieldType): string {
+  switch (fieldType) {
+    case 'ID':
+    case 'INTEGER':
+    case 'STAR_RATING':
+      return 'INTEGER';
+    case 'DECIMAL':
+      return 'REAL';
+    default:
+      return 'TEXT';
+  }
+}
+
+export async function getAllAlbums(): Promise<Album[]> {
+  const db = await getDatabase();
+  const results = await db.select<Array<{
+    id: number;
+    album_name: string;
+    album_table_name: string;
+    has_pictures: string;
+  }>>('SELECT * FROM album_master_table');
+
+  return results.map(row => ({
+    id: row.id,
+    albumName: row.album_name,
+    albumTableName: row.album_table_name,
+    hasPictures: row.has_pictures as 'YES' | 'NO' | 'UNKNOWN',
+  }));
+}
+
+export async function createAlbum(
+  name: string,
+  fields: FieldDefinition[],
+  hasPictures: boolean
+): Promise<Album> {
+  const db = await getDatabase();
+  const tableName = sanitizeTableName(name);
+  const schemaVersion = uuidv4();
+
+  // Build column definitions
+  const columns = fields
+    .map(f => `"${f.name}" ${fieldTypeToSql(f.fieldType)}`)
+    .join(', ');
+
+  // 1. Create main album table
+  await db.execute(`
+    CREATE TABLE "${tableName}" (
+      id INTEGER PRIMARY KEY,
+      ${columns ? columns + ',' : ''}
+      content_version TEXT,
+      typeinfo INTEGER
+    )
+  `);
+
+  // 2. Create typeinfo table
+  const typeinfoColumns = fields
+    .map(f => `"${f.name}" TEXT`)
+    .join(', ');
+
+  await db.execute(`
+    CREATE TABLE "${tableName}_typeinfo" (
+      id INTEGER PRIMARY KEY,
+      ${typeinfoColumns ? typeinfoColumns + ',' : ''}
+      schema_version TEXT
+    )
+  `);
+
+  // 3. Insert typeinfo row with field types
+  const fieldNames = fields.map(f => `"${f.name}"`).join(', ');
+  const fieldTypes = fields.map(f => `'${f.fieldType}'`).join(', ');
+
+  await db.execute(`
+    INSERT INTO "${tableName}_typeinfo"
+    (${fieldNames ? fieldNames + ',' : ''} schema_version)
+    VALUES (${fieldTypes ? fieldTypes + ',' : ''} '${schemaVersion}')
+  `);
+
+  // 4. Create pictures table if needed
+  if (hasPictures) {
+    await db.execute(`
+      CREATE TABLE "${tableName}_pictures" (
+        id INTEGER PRIMARY KEY,
+        original_picture_filename TEXT,
+        thumbnail_picture_filename TEXT,
+        album_item_foreign_key INTEGER
+      )
+    `);
+  }
+
+  // 5. Register in master table
+  const result = await db.execute(
+    `INSERT INTO album_master_table (album_name, album_table_name, has_pictures)
+     VALUES ($1, $2, $3)`,
+    [name, tableName, hasPictures ? 'YES' : 'NO']
+  );
+
+  return {
+    id: result.lastInsertId,
+    albumName: name,
+    albumTableName: tableName,
+    hasPictures: hasPictures ? 'YES' : 'NO',
+  };
+}
+
+export async function deleteAlbum(albumTableName: string): Promise<void> {
+  const db = await getDatabase();
+
+  // Drop all related tables
+  await db.execute(`DROP TABLE IF EXISTS "${albumTableName}"`);
+  await db.execute(`DROP TABLE IF EXISTS "${albumTableName}_typeinfo"`);
+  await db.execute(`DROP TABLE IF EXISTS "${albumTableName}_pictures"`);
+
+  // Remove from master table
+  await db.execute(
+    'DELETE FROM album_master_table WHERE album_table_name = $1',
+    [albumTableName]
+  );
+}
+
+export async function getAlbumSchema(albumTableName: string): Promise<AlbumSchema> {
+  const db = await getDatabase();
+
+  // Get typeinfo row
+  const typeinfo = await db.select<Array<Record<string, string>>>(
+    `SELECT * FROM "${albumTableName}_typeinfo" LIMIT 1`
+  );
+
+  if (typeinfo.length === 0) {
+    return { fields: [], schemaVersion: '' };
+  }
+
+  const row = typeinfo[0];
+  const fields: FieldDefinition[] = [];
+
+  for (const [key, value] of Object.entries(row)) {
+    if (key === 'id' || key === 'schema_version') continue;
+
+    fields.push({
+      name: key,
+      fieldType: value as FieldType,
+      quickSearchable: false, // TODO: Store this separately
+    });
+  }
+
+  return {
+    fields,
+    schemaVersion: row.schema_version || '',
+  };
+}
+```
+
+### 6.2 Item Service (TypeScript - Full Implementation)
+
+```typescript
+// src/services/items.ts
+
+import { getDatabase } from './database';
+import type { AlbumItem, FieldValue, Picture } from '../types/item';
+import { getAlbumSchema } from './albums';
+import { v4 as uuidv4 } from 'uuid';
+
+export async function getAlbumItems(
+  albumTableName: string,
+  limit?: number,
+  offset?: number
+): Promise<AlbumItem[]> {
+  const db = await getDatabase();
+  const schema = await getAlbumSchema(albumTableName);
+
+  let sql = `SELECT * FROM "${albumTableName}" ORDER BY id DESC`;
+  if (limit) sql += ` LIMIT ${limit}`;
+  if (offset) sql += ` OFFSET ${offset}`;
+
+  const rows = await db.select<Array<Record<string, unknown>>>(sql);
+
+  return Promise.all(rows.map(async row => {
+    const fields: FieldValue[] = schema.fields.map(field => ({
+      name: field.name,
+      value: row[field.name],
+      fieldType: field.fieldType,
+    }));
+
+    // Load pictures
+    const pictures = await getPicturesForItem(albumTableName, row.id as number);
+
+    return {
+      id: row.id as number,
+      fields,
+      contentVersion: (row.content_version as string) || '',
+      pictures,
+    };
+  }));
+}
+
+export async function createItem(
+  albumTableName: string,
+  fields: FieldValue[]
+): Promise<AlbumItem> {
+  const db = await getDatabase();
+  const contentVersion = uuidv4();
+
+  const columnNames = fields.map(f => `"${f.name}"`).join(', ');
+  const placeholders = fields.map((_, i) => `$${i + 1}`).join(', ');
+  const values = fields.map(f => f.value);
+
+  const result = await db.execute(
+    `INSERT INTO "${albumTableName}" (${columnNames}, content_version, typeinfo)
+     VALUES (${placeholders}, $${fields.length + 1}, 1)`,
+    [...values, contentVersion]
+  );
+
+  return {
+    id: result.lastInsertId,
+    fields,
+    contentVersion,
+    pictures: [],
+  };
+}
+
+export async function updateItem(
+  albumTableName: string,
+  itemId: number,
+  fields: FieldValue[]
+): Promise<void> {
+  const db = await getDatabase();
+  const contentVersion = uuidv4();
+
+  const setClauses = fields.map((f, i) => `"${f.name}" = $${i + 1}`).join(', ');
+  const values = fields.map(f => f.value);
+
+  await db.execute(
+    `UPDATE "${albumTableName}"
+     SET ${setClauses}, content_version = $${fields.length + 1}
+     WHERE id = $${fields.length + 2}`,
+    [...values, contentVersion, itemId]
+  );
+}
+
+export async function deleteItem(
+  albumTableName: string,
+  itemId: number
+): Promise<void> {
+  const db = await getDatabase();
+
+  // Delete associated pictures first
+  await db.execute(
+    `DELETE FROM "${albumTableName}_pictures" WHERE album_item_foreign_key = $1`,
+    [itemId]
+  );
+
+  // Delete item
+  await db.execute(
+    `DELETE FROM "${albumTableName}" WHERE id = $1`,
+    [itemId]
+  );
+}
+
+async function getPicturesForItem(
+  albumTableName: string,
+  itemId: number
+): Promise<Picture[]> {
+  const db = await getDatabase();
+
+  const rows = await db.select<Array<{
+    id: number;
+    original_picture_filename: string;
+    thumbnail_picture_filename: string;
+  }>>(
+    `SELECT * FROM "${albumTableName}_pictures" WHERE album_item_foreign_key = $1`,
+    [itemId]
+  );
+
+  return rows.map(row => ({
+    id: row.id,
+    originalFilename: row.original_picture_filename,
+    thumbnailFilename: row.thumbnail_picture_filename,
+  }));
+}
+```
+
+### 6.3 Search Service (TypeScript - Full Implementation)
+
+```typescript
+// src/services/search.ts
+
+import { getDatabase } from './database';
+import type { AlbumItem } from '../types/item';
+import { getAlbumItems } from './items';
+
+export type SearchOperator =
+  | 'equals'
+  | 'notEquals'
+  | 'contains'
+  | 'startsWith'
+  | 'endsWith'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'greaterOrEqual'
+  | 'lessOrEqual'
+  | 'isEmpty'
+  | 'isNotEmpty';
+
+export interface SearchCriteria {
+  field: string;
+  operator: SearchOperator;
+  value: string;
+}
+
+function operatorToSql(operator: SearchOperator, field: string, paramIndex: number): string {
+  const placeholder = `$${paramIndex}`;
+  switch (operator) {
+    case 'equals':
+      return `"${field}" = ${placeholder}`;
+    case 'notEquals':
+      return `"${field}" != ${placeholder}`;
+    case 'contains':
+      return `"${field}" LIKE '%' || ${placeholder} || '%'`;
+    case 'startsWith':
+      return `"${field}" LIKE ${placeholder} || '%'`;
+    case 'endsWith':
+      return `"${field}" LIKE '%' || ${placeholder}`;
+    case 'greaterThan':
+      return `"${field}" > ${placeholder}`;
+    case 'lessThan':
+      return `"${field}" < ${placeholder}`;
+    case 'greaterOrEqual':
+      return `"${field}" >= ${placeholder}`;
+    case 'lessOrEqual':
+      return `"${field}" <= ${placeholder}`;
+    case 'isEmpty':
+      return `("${field}" IS NULL OR "${field}" = '')`;
+    case 'isNotEmpty':
+      return `("${field}" IS NOT NULL AND "${field}" != '')`;
+  }
+}
+
+export async function searchItems(
+  albumTableName: string,
+  criteria: SearchCriteria[],
+  quickSearch?: string,
+  useAndLogic = true
+): Promise<AlbumItem[]> {
+  const db = await getDatabase();
+
+  const whereClauses: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = 1;
+
+  // Build criteria clauses
+  for (const criterion of criteria) {
+    if (criterion.operator === 'isEmpty' || criterion.operator === 'isNotEmpty') {
+      whereClauses.push(operatorToSql(criterion.operator, criterion.field, paramIndex));
+    } else {
+      whereClauses.push(operatorToSql(criterion.operator, criterion.field, paramIndex));
+      params.push(criterion.value);
+      paramIndex++;
+    }
+  }
+
+  // Quick search (searches all text fields)
+  if (quickSearch) {
+    // Get all text columns from typeinfo
+    const typeinfo = await db.select<Array<Record<string, string>>>(
+      `SELECT * FROM "${albumTableName}_typeinfo" LIMIT 1`
+    );
+
+    if (typeinfo.length > 0) {
+      const textFields = Object.entries(typeinfo[0])
+        .filter(([key, value]) => key !== 'id' && key !== 'schema_version' && value === 'TEXT')
+        .map(([key]) => key);
+
+      if (textFields.length > 0) {
+        const quickClauses = textFields.map(
+          field => `"${field}" LIKE '%' || $${paramIndex} || '%'`
+        );
+        whereClauses.push(`(${quickClauses.join(' OR ')})`);
+        params.push(quickSearch);
+      }
+    }
+  }
+
+  const whereClause = whereClauses.length > 0
+    ? ` WHERE ${whereClauses.join(useAndLogic ? ' AND ' : ' OR ')}`
+    : '';
+
+  const sql = `SELECT id FROM "${albumTableName}"${whereClause} ORDER BY id DESC`;
+  const rows = await db.select<Array<{ id: number }>>(sql, params);
+
+  // Fetch full items for matching IDs
+  const items = await getAlbumItems(albumTableName);
+  const matchingIds = new Set(rows.map(r => r.id));
+
+  return items.filter(item => matchingIds.has(item.id));
+}
+```
+
+### 6.4 Picture Service (TypeScript + Rust for thumbnails)
+
+```typescript
+// src/services/pictures.ts
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Album, AlbumSchema, FieldDefinition } from '../types/album';
-import type { AlbumItem, FieldValue } from '../types/item';
-import type { SearchCriteria } from '../types/search';
+import { open } from '@tauri-apps/plugin-dialog';
+import { appDataDir, join } from '@tauri-apps/api/path';
+import { getDatabase } from './database';
+import type { Picture } from '../types/item';
 
-// Album operations
-export const albumApi = {
-  getAll: () => invoke<Album[]>('get_all_albums'),
+export async function addPicture(
+  albumTableName: string,
+  itemId: number
+): Promise<Picture | null> {
+  // Open file picker
+  const selected = await open({
+    multiple: false,
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }],
+  });
 
-  create: (name: string, fields: FieldDefinition[], hasPictures: boolean) =>
-    invoke<Album>('create_album', { name, fields, hasPictures }),
+  if (!selected) return null;
 
-  delete: (albumTableName: string) =>
-    invoke<void>('delete_album', { albumTableName }),
+  const sourcePath = selected as string;
+  const dataDir = await appDataDir();
 
-  getSchema: (albumTableName: string) =>
-    invoke<AlbumSchema>('get_album_schema', { albumTableName }),
+  // Copy original image (Rust command)
+  const originalDir = await join(dataDir, albumTableName);
+  const originalFilename = await invoke<string>('copy_and_rename_image', {
+    sourcePath,
+    destDir: originalDir,
+  });
 
-  updateSchema: (albumTableName: string, fields: FieldDefinition[]) =>
-    invoke<void>('update_album_schema', { albumTableName, fields }),
-};
+  // Generate thumbnail (Rust command)
+  const thumbnailDir = await join(dataDir, 'thumbnails');
+  const thumbnailFilename = await invoke<string>('generate_thumbnail', {
+    sourcePath,
+    destDir: thumbnailDir,
+    size: 200,
+  });
 
-// Item operations
-export const itemApi = {
-  getAll: (albumTableName: string, limit?: number, offset?: number) =>
-    invoke<AlbumItem[]>('get_album_items', { albumTableName, limit, offset }),
+  // Save to database
+  const db = await getDatabase();
+  const result = await db.execute(
+    `INSERT INTO "${albumTableName}_pictures"
+     (original_picture_filename, thumbnail_picture_filename, album_item_foreign_key)
+     VALUES ($1, $2, $3)`,
+    [originalFilename, thumbnailFilename, itemId]
+  );
 
-  create: (albumTableName: string, fields: FieldValue[]) =>
-    invoke<AlbumItem>('create_item', { albumTableName, fields }),
+  return {
+    id: result.lastInsertId,
+    originalFilename,
+    thumbnailFilename,
+  };
+}
 
-  update: (albumTableName: string, itemId: number, fields: FieldValue[]) =>
-    invoke<void>('update_item', { albumTableName, itemId, fields }),
+export async function deletePicture(
+  albumTableName: string,
+  pictureId: number
+): Promise<void> {
+  const db = await getDatabase();
 
-  delete: (albumTableName: string, itemId: number) =>
-    invoke<void>('delete_item', { albumTableName, itemId }),
-};
+  // Get filenames before deleting
+  const rows = await db.select<Array<{
+    original_picture_filename: string;
+    thumbnail_picture_filename: string;
+  }>>(
+    `SELECT * FROM "${albumTableName}_pictures" WHERE id = $1`,
+    [pictureId]
+  );
 
-// Search operations
-export const searchApi = {
-  search: (albumTableName: string, criteria: SearchCriteria[], quickSearch?: string) =>
-    invoke<AlbumItem[]>('search_items', { albumTableName, criteria, quickSearch }),
+  if (rows.length > 0) {
+    // TODO: Delete files from filesystem via Tauri fs plugin
+  }
 
-  saveSearch: (name: string, albumTableName: string, criteria: SearchCriteria[]) =>
-    invoke<number>('save_search', { name, albumTableName, criteria }),
+  // Delete from database
+  await db.execute(
+    `DELETE FROM "${albumTableName}_pictures" WHERE id = $1`,
+    [pictureId]
+  );
+}
 
-  getSavedSearches: (albumTableName: string) =>
-    invoke<SavedSearch[]>('get_saved_searches', { albumTableName }),
-};
+export async function getPicturePath(
+  albumTableName: string,
+  filename: string
+): Promise<string> {
+  const dataDir = await appDataDir();
+  return join(dataDir, albumTableName, filename);
+}
 
-// Picture operations
-export const pictureApi = {
-  add: (albumTableName: string, itemId: number, filePath: string) =>
-    invoke<Picture>('add_picture', { albumTableName, itemId, filePath }),
-
-  delete: (albumTableName: string, pictureId: number) =>
-    invoke<void>('delete_picture', { albumTableName, pictureId }),
-
-  getPath: (albumName: string, filename: string) =>
-    invoke<string>('get_picture_path', { albumName, filename }),
-};
-
-// Import/Export operations
-export const importExportApi = {
-  importCsv: (albumTableName: string, filePath: string) =>
-    invoke<number>('import_csv', { albumTableName, filePath }),
-
-  exportCsv: (albumTableName: string, filePath: string) =>
-    invoke<void>('export_csv', { albumTableName, filePath }),
-
-  exportHtml: (albumTableName: string, filePath: string, template?: string) =>
-    invoke<void>('export_html', { albumTableName, filePath, template }),
-};
+export async function getThumbnailPath(filename: string): Promise<string> {
+  const dataDir = await appDataDir();
+  return join(dataDir, 'thumbnails', filename);
+}
 ```
 
 ### 6.3 React Hooks with TanStack Query
@@ -2135,9 +2010,171 @@ jobs:
 
 ---
 
-## 11. Appendix
+## 11. Testing Strategy
 
-### A. Cargo Dependencies
+### 11.1 Reusing Existing Java Tests
+
+The original Sammelbox has **57 integration tests** that define the exact behavior the new implementation must match. We can leverage these:
+
+#### Test Assets (Direct Reuse)
+
+| Asset | Location | Use |
+|-------|----------|-----|
+| Test backup | `test/testdata/test-albums-version-3.4.3.cbk` | Load to verify DB compatibility |
+| CSV files | `test/testdata/import-test-data/*.csv` | Test import functionality |
+| Test images | `test/testdata/import-test-data/*.png` | Test picture handling |
+
+#### Ported Test Structure
+
+```
+tests/
+├── integration/
+│   ├── albums.test.ts         # From CreateAlbumTests, AlterAlbumTests
+│   ├── items.test.ts          # From AddAlbumItemTests, UpdateAlbumItemTests
+│   ├── search.test.ts         # From QuickSearchTests, AdvancedSearchTests
+│   ├── backup-restore.test.ts # From BackupRestoreTests
+│   ├── import-export.test.ts  # From CSVImportTests, ExportTests
+│   └── saved-searches.test.ts # From SavedSearchesTests
+├── unit/
+│   ├── services/
+│   └── utils/
+└── e2e/
+    └── playwright/
+```
+
+### 11.2 Example Ported Tests
+
+```typescript
+// tests/integration/albums.test.ts
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { createAlbum, getAllAlbums, deleteAlbum, getAlbumSchema } from '../../src/services/albums';
+import { resetTestDatabase, loadTestBackup } from '../helpers/database';
+
+describe('Album Creation (from CreateAlbumTests.java)', () => {
+  beforeEach(async () => {
+    await resetTestDatabase();
+  });
+
+  it('testBookCreation - creates album with standard fields', async () => {
+    const album = await createAlbum('Books', [
+      { name: 'Book Title', fieldType: 'TEXT', quickSearchable: true },
+      { name: 'Author', fieldType: 'TEXT', quickSearchable: true },
+      { name: 'Purchased', fieldType: 'DATE', quickSearchable: false },
+      { name: 'Price', fieldType: 'DECIMAL', quickSearchable: false },
+      { name: 'Lent to', fieldType: 'TEXT', quickSearchable: false },
+    ], false);
+
+    expect(album.id).toBeGreaterThan(0);
+    expect(album.albumName).toBe('Books');
+
+    const schema = await getAlbumSchema(album.albumTableName);
+    expect(schema.fields).toHaveLength(5);
+    expect(schema.fields[0].name).toBe('Book Title');
+  });
+
+  it('testAlbumWithScoreCreation - hyphens convert to underscores', async () => {
+    const album = await createAlbum('My-Books', [
+      { name: 'Book-Title', fieldType: 'TEXT', quickSearchable: false },
+    ], false);
+
+    expect(album.albumTableName).toBe('my_books');
+  });
+
+  it('testAlbumCreationWithEmptyFieldList - empty fields allowed', async () => {
+    const album = await createAlbum('Empty Album', [], false);
+    expect(album.id).toBeGreaterThan(0);
+
+    const schema = await getAlbumSchema(album.albumTableName);
+    expect(schema.fields).toHaveLength(0);
+  });
+});
+
+describe('Search Tests (from QuickSearchTests.java)', () => {
+  beforeEach(async () => {
+    await loadTestBackup('test-albums-version-3.4.3.cbk');
+  });
+
+  it('testQuickSearchActorInDVDs - finds Smith in 2 movies', async () => {
+    const results = await searchItems('DVDs', [], 'Smith');
+
+    // Original test expects 2 results: Independence Day, Wild Wild West
+    expect(results.length).toBe(2);
+  });
+
+  it('testQuickSearchActorsInDVDs - multiple terms', async () => {
+    const results = await searchItems('DVDs', [], 'Cooper');
+    expect(results.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Database Compatibility', () => {
+  it('loads original Java-created backup file', async () => {
+    await loadTestBackup('test-albums-version-3.4.3.cbk');
+
+    const albums = await getAllAlbums();
+
+    // Test backup contains 3 albums
+    expect(albums.length).toBe(3);
+
+    // Verify expected album data
+    const books = albums.find(a => a.albumName === 'Books');
+    const dvds = albums.find(a => a.albumName === 'DVDs');
+    const music = albums.find(a => a.albumName === 'Music CDs');
+
+    expect(books).toBeDefined();
+    expect(dvds).toBeDefined();
+    expect(music).toBeDefined();
+  });
+
+  it('Books album has 10 items', async () => {
+    await loadTestBackup('test-albums-version-3.4.3.cbk');
+    const items = await getAlbumItems('Books');
+    expect(items.length).toBe(10);
+  });
+
+  it('DVDs album has 11 items', async () => {
+    await loadTestBackup('test-albums-version-3.4.3.cbk');
+    const items = await getAlbumItems('DVDs');
+    expect(items.length).toBe(11);
+  });
+});
+```
+
+### 11.3 Test Coverage Goals
+
+| Category | Test Count | Source |
+|----------|-----------|--------|
+| Album CRUD | 19 | CreateAlbumTests, AlterAlbumTests, RemoveAlbumTests |
+| Item CRUD | 12 | AddAlbumItemTests, UpdateAlbumItemTests, RemoveAlbumItemTests |
+| Pictures | 3 | AlbumItemPictureTests |
+| Search | 11 | QuickSearchTests, AdvancedSearchTests |
+| Saved Searches | 6 | SavedSearchesTests, ModifySavedSearchesTests |
+| Backup/Restore | 7 | BackupRestoreTests |
+| Import/Export | 7 | CSVImportTests, ExportTests |
+| **Total** | **65** | |
+
+### 11.4 Running Tests
+
+```bash
+# Unit tests (fast, no Tauri)
+pnpm test
+
+# Integration tests (requires Tauri)
+pnpm test:integration
+
+# E2E tests (full app)
+pnpm test:e2e
+
+# All tests
+pnpm test:all
+```
+
+---
+
+## 12. Appendix
+
+### A. Cargo Dependencies (Minimal)
 
 ```toml
 # src-tauri/Cargo.toml
@@ -2151,23 +2188,21 @@ tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
 tauri = { version = "2.0", features = ["protocol-asset"] }
-tauri-plugin-shell = "2.0"
-tauri-plugin-dialog = "2.0"
+tauri-plugin-sql = { version = "2.0", features = ["sqlite"] }
 tauri-plugin-fs = "2.0"
+tauri-plugin-dialog = "2.0"
+tauri-plugin-shell = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rusqlite = { version = "0.31", features = ["bundled"] }
-uuid = { version = "1.7", features = ["v4"] }
 image = "0.25"
-tokio = { version = "1.36", features = ["full"] }
-thiserror = "1.0"
-log = "0.4"
-env_logger = "0.11"
+uuid = { version = "1.7", features = ["v4"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 ```
+
+**Note:** No `rusqlite` - SQLite is handled by `tauri-plugin-sql` from TypeScript.
 
 ### B. Node Dependencies
 
